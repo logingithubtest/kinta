@@ -1,6 +1,7 @@
 package com.dailymotion.kinta
 
-import com.dailymotion.kinta.command.*
+import com.dailymotion.kinta.command.Init
+import com.dailymotion.kinta.command.Run
 import com.dailymotion.kinta.integration.gradle.Gradle
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.subcommands
@@ -8,15 +9,19 @@ import java.io.File
 import kotlin.system.exitProcess
 
 
-val subCommands: List<CliktCommand> = listOf(
-        Run,
-        Init
-)
+val subCommands: List<CliktCommand> by lazy {
+    listOf(
+            Run,
+            Init
+    )
+}
 
-val mainCommand = object : CliktCommand(name = "kinta") {
-    override fun run() {
-    }
-}.subcommands(subCommands.sortedBy { it.commandName })
+val mainCommand: CliktCommand by lazy {
+    object : CliktCommand(name = "kinta") {
+        override fun run() {
+        }
+    }.subcommands(subCommands.sortedBy { it.commandName })
+}
 
 fun main(args: Array<String>) {
     val hasKintaDir = File("kintaSrc").exists()
