@@ -2,13 +2,14 @@
 
 Kinta is the swiss army knife for Mobile Apps automation. It helps you:
 
-* build your app, run your test cases
+* build your app
+* run your unit and UI tests
 * upload your app to the google play
 * upload screenshots, listing and changelogs to the google play
 * handle beta distribution and testers
 * manage translations, opening pull requests automatically 
 * git housekeeping
-* etc...
+* and much more!
 
 Kinta is 100% written in Kotlin and can run in your CI or on your laptop.
 
