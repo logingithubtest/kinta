@@ -143,7 +143,8 @@ object GithubIntegration {
             token: String? = null,
             owner: String? = null,
             repo: String? = null,
-            toExcludeFilter: ((String) -> Boolean) = { _ -> false }
+            toExcludeFilter: ((String) -> Boolean) = { _ -> false },
+            safeMode: Boolean = false
     ): List<String> {
         val token_ = token ?: retrieveToken()
         val owner_ = owner ?: repository().owner
@@ -184,7 +185,7 @@ object GithubIntegration {
 
             val associatedPullRequests = it.associatedPullRequests.nodes?.filterNotNull()
 
-            if(toExcludeFilter(name)){
+            if (toExcludeFilter(name)) {
                 // The user has exclude this ref from the delete list
                 return@filter false
             }
@@ -204,6 +205,15 @@ object GithubIntegration {
                 return@filter false
             }
 
+            if (safeMode) {
+                println("You are going to delete : $name Continue [yes/no]?")
+                loop@ while (true) {
+                    when (readLine()) {
+                        "yes" -> break@loop
+                        "no" -> return@filter false
+                    }
+                }
+            }
             // fallthrough, delete this branch
             true
         }.map {
