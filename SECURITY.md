@@ -1,3 +1,1 @@
-# Security Policy
-
-Our security policy is available [here](https://www.dailymotion.com/.well-known/security.txt)
+Read more about security [here](https://www.dailymotion.com/.well-known/security.txt)
