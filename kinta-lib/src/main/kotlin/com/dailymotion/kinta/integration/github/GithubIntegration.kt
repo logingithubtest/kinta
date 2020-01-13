@@ -125,8 +125,10 @@ object GithubIntegration {
         val owner_ = owner ?: repository().owner
         val repo_ = repo ?: repository().name
 
+        println("deleting $ref...")
+
         val request = Request.Builder()
-                .url("https://api.github.com/repos/$owner_/$repo_/refs/$ref")
+                .url("https://api.github.com/repos/$owner_/$repo_/git/refs/heads/$ref")
                 .delete()
                 .build()
 
@@ -140,7 +142,8 @@ object GithubIntegration {
     fun deleteClosedOrMergedBranches(
             token: String? = null,
             owner: String? = null,
-            repo: String? = null
+            repo: String? = null,
+            toExcludeFilter: ((String) -> Boolean) = { _ -> false }
     ): List<String> {
         val token_ = token ?: retrieveToken()
         val owner_ = owner ?: repository().owner
@@ -180,6 +183,12 @@ object GithubIntegration {
             }
 
             val associatedPullRequests = it.associatedPullRequests.nodes?.filterNotNull()
+
+            if(toExcludeFilter(name)){
+                // The user has exclude this ref from the delete list
+                return@filter false
+            }
+
             if (associatedPullRequests.isNullOrEmpty()) {
                 // This ref has no associated pull request yet, don't delete it
                 return@filter false
@@ -193,7 +202,6 @@ object GithubIntegration {
             if (allBaseBrancheNames.contains(name)) {
                 // This ref is used as a base for another one, don't delete it
                 return@filter false
-
             }
 
             // fallthrough, delete this branch
