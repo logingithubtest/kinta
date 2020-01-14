@@ -16,8 +16,7 @@ val cleanLocal = object : CliktCommand(name = "cleanLocal", help = """
     override fun run() {
         GitIntegration.fetch(prune = true)
 
-        val branches = GitIntegration.getBranches().filter { it != "master" }
-        val branchesInfo = GithubIntegration.getBranchesInfo(branches = branches)
+        val branchesInfo = GithubIntegration.getBranchesInfo().filter { it.name != "master" }
         val closedOrMergedBranches = branchesInfo.filter {
             val mergedOrClosedPullRequests = it.pullRequests.filter { it.closed || it.merged }
             it.pullRequests.isNotEmpty()
