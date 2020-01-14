@@ -12,6 +12,38 @@ val cleanGithubBranches = object : CliktCommand(name = "cleanGithubBranches", he
     This only works for repositories hosted on github.
 """.trimIndent()) {
     override fun run() {
-        GithubIntegration.deleteClosedOrMergedBranches()
+        val branchesInfo = GithubIntegration.getBranchesInfo()
+        val branchesToDelete = branchesInfo.filter {
+            val name = it.name
+
+            if (name == "master") {
+                // never delete master
+                return@filter false
+            }
+
+            if (it.pullRequests.isNullOrEmpty()) {
+                // This ref has no associated pull request yet, don't delete it
+                return@filter false
+            }
+
+            if (it.pullRequests.count { !it.merged && !it.closed } > 0) {
+                // There is one open pull request on this ref, don't delete it
+                return@filter false
+            }
+
+            if (it.dependantPullRequests.count { !it.merged && !it.closed } > 0) {
+                // This ref is used as a base for another one, don't delete it
+                return@filter false
+            }
+
+            // fallthrough, delete this branch
+            true
+        }.map {
+            it.name
+        }
+
+        branchesToDelete.forEach {
+            GithubIntegration.deleteRef(ref = it)
+        }
     }
 }

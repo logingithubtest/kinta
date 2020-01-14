@@ -72,7 +72,8 @@ object GithubIntegration {
      */
     data class BranchInfo(
             val name: String,
-            val pullRequests: List<PullRequestInfo>
+            val pullRequests: List<PullRequestInfo>,
+            val dependantPullRequests: List<PullRequestInfo>
     )
 
     data class PullRequestInfo(
@@ -87,16 +88,34 @@ object GithubIntegration {
     fun getBranchesInfo(
             token: String? = null,
             owner: String? = null,
-            repo: String? = null,
-            branches: List<String>): List<BranchInfo> {
+            repo: String? = null): List<BranchInfo> {
         val token_ = token ?: retrieveToken()
         val owner_ = owner ?: repository().owner
         val repo_ = repo ?: repository().name
 
+        //Get all refs
+        val allRefs = runBlocking {
+            val query = GetRefs(owner_, repo_)
+            apolloClient(token_).query(query)
+                    .toDeferred()
+                    .await()
+                    .data()
+                    ?.repository
+                    ?.refs
+                    ?.edges
+                    ?.map { it?.node }
+                    ?.filterNotNull() ?: emptyList()
+        }
+
+        //Get all base branches name
+        val allPrs = allRefs.flatMap {
+            it.associatedPullRequests.nodes?.filterNotNull() ?: listOf()
+        }
+
         return runBlocking {
-            branches.map {
+            allRefs.map { it.name }.map { branch ->
                 val pullRequests = apolloClient(token_)
-                        .query(GetPullRequestByName(owner_, repo_, it))
+                        .query(GetPullRequestByName(owner_, repo_, branch))
                         .toDeferred()
                         .await()
                         .data()
@@ -106,8 +125,11 @@ object GithubIntegration {
                         ?.filterNotNull() ?: emptyList()
 
                 BranchInfo(
-                        name = it,
+                        name = branch,
                         pullRequests = pullRequests.map {
+                            PullRequestInfo(it.number, it.merged, it.closed)
+                        },
+                        dependantPullRequests = allPrs.filter { it.baseRef?.name == branch }.map {
                             PullRequestInfo(it.number, it.merged, it.closed)
                         }
                 )
