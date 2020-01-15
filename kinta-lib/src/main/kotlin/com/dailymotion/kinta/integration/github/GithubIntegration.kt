@@ -85,56 +85,33 @@ object GithubIntegration {
     /**
      * For each branch in branches, get some info about the pull requests associated to it
      */
-    fun getBranchesInfo(
+    fun getBranchInfo(
             token: String? = null,
             owner: String? = null,
-            repo: String? = null): List<BranchInfo> {
+            repo: String? = null,
+            branch: String): BranchInfo {
         val token_ = token ?: retrieveToken()
         val owner_ = owner ?: repository().owner
         val repo_ = repo ?: repository().name
 
-        //Get all refs
-        val allRefs = runBlocking {
-            val query = GetRefs(owner_, repo_)
+        val branchData = runBlocking {
+            val query = GetBranchInfos(owner_, repo_, branch)
             apolloClient(token_).query(query)
                     .toDeferred()
                     .await()
                     .data()
                     ?.repository
-                    ?.refs
-                    ?.edges
-                    ?.map { it?.node }
-                    ?.filterNotNull() ?: emptyList()
         }
 
-        //Get all base branches name
-        val allPrs = allRefs.flatMap {
-            it.associatedPullRequests.nodes?.filterNotNull() ?: listOf()
-        }
-
-        return runBlocking {
-            allRefs.map { it.name }.map { branch ->
-                val pullRequests = apolloClient(token_)
-                        .query(GetPullRequestByName(owner_, repo_, branch))
-                        .toDeferred()
-                        .await()
-                        .data()
-                        ?.repository
-                        ?.pullRequests
-                        ?.nodes
-                        ?.filterNotNull() ?: emptyList()
-
-                BranchInfo(
-                        name = branch,
-                        pullRequests = pullRequests.map {
-                            PullRequestInfo(it.number, it.merged, it.closed)
-                        },
-                        dependantPullRequests = allPrs.filter { it.baseRef?.name == branch }.map {
-                            PullRequestInfo(it.number, it.merged, it.closed)
-                        }
-                )
-            }
-        }
+        return BranchInfo(
+                name = branch,
+                pullRequests = (branchData?.ref?.associatedPullRequests?.nodes?.mapNotNull {
+                    it?.let { PullRequestInfo(it.number, it.merged, it.closed) }
+                }) ?: listOf(),
+                dependantPullRequests = (branchData?.pullRequests?.nodes?.mapNotNull {
+                    it?.let { PullRequestInfo(it.number, it.merged, it.closed) }
+                }) ?: listOf()
+        )
     }
 
     fun deleteRef(
@@ -161,20 +138,17 @@ object GithubIntegration {
 
     }
 
-    fun deleteClosedOrMergedBranches(
+    fun getAllBranches(
             token: String? = null,
             owner: String? = null,
-            repo: String? = null,
-            toExcludeFilter: ((String) -> Boolean) = { _ -> false },
-            safeMode: Boolean = false
-    ): List<String> {
+            repo: String? = null
+    ) : List<String>{
         val token_ = token ?: retrieveToken()
         val owner_ = owner ?: repository().owner
         val repo_ = repo ?: repository().name
 
-        val allRefs = runBlocking {
+        return runBlocking {
             val query = GetRefs(owner_, repo_)
-
             apolloClient(token_).query(query)
                     .toDeferred()
                     .await()
@@ -182,71 +156,10 @@ object GithubIntegration {
                     ?.repository
                     ?.refs
                     ?.edges
-                    ?.map { it?.node }
+                    ?.map { it?.node?.name }
                     ?.filterNotNull() ?: emptyList()
 
         }
-
-        /**
-         * Get the list of all open pullRequests and their base branch name
-         * We don't want to delete these
-         */
-        val allBaseBrancheNames = allRefs
-                .flatMap { it.associatedPullRequests.nodes!!.filterNotNull() }
-                .filter { !it.merged && !it.closed }
-                .mapNotNull { it.baseRef?.name }
-
-
-        val deletedBranchNames = allRefs.filter {
-            val name = it.name
-
-            if (name == "master") {
-                // never delete master
-                return@filter false
-            }
-
-            val associatedPullRequests = it.associatedPullRequests.nodes?.filterNotNull()
-
-            if (toExcludeFilter(name)) {
-                // The user has exclude this ref from the delete list
-                return@filter false
-            }
-
-            if (associatedPullRequests.isNullOrEmpty()) {
-                // This ref has no associated pull request yet, don't delete it
-                return@filter false
-            }
-
-            if (associatedPullRequests.count { !it.merged && !it.closed } > 0) {
-                // There is one open pull request on this ref, don't delete it
-                return@filter false
-            }
-
-            if (allBaseBrancheNames.contains(name)) {
-                // This ref is used as a base for another one, don't delete it
-                return@filter false
-            }
-
-            if (safeMode) {
-                println("You are going to delete : $name Continue [yes/no]?")
-                loop@ while (true) {
-                    when (readLine()) {
-                        "yes" -> break@loop
-                        "no" -> return@filter false
-                    }
-                }
-            }
-            // fallthrough, delete this branch
-            true
-        }.map {
-            it.name
-        }
-
-        deletedBranchNames.forEach {
-            deleteRef(token, owner, repo, it)
-        }
-
-        return deletedBranchNames
     }
 
     fun apolloClient(token: String): ApolloClient {

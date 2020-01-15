@@ -17,7 +17,8 @@ val cleanGithubBranches = object : CliktCommand(name = "cleanGithubBranches", he
     private val dontAsk by option("--dont-ask").flag()
 
     override fun run() {
-        val branchesInfo = GithubIntegration.getBranchesInfo()
+        val branchesInfo = GithubIntegration.getAllBranches().map { GithubIntegration.getBranchInfo(branch = it) }
+
         val branchesToDelete = branchesInfo.filter {
             val name = it.name
 
