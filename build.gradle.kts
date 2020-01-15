@@ -4,6 +4,7 @@ plugins {
     id("org.jetbrains.kotlin.jvm").version(Versions.kotlin).apply(false)
     id("org.jetbrains.kotlin.plugin.serialization").version(Versions.kotlin).apply(false)
     id("com.apollographql.apollo").version(Versions.apollo).apply(false)
+    id("org.jetbrains.dokka").version(Versions.dokka).apply(false)
 }
 
 subprojects {
@@ -26,6 +27,7 @@ subprojects {
     group = "com.dailymotion.kinta"
     version = "0.1.0"
 
+    apply(plugin = "org.jetbrains.dokka")
     apply(plugin = "maven-publish")
 
     afterEvaluate {

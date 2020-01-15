@@ -1,6 +1,6 @@
 rootProject.name = "kinta"
 
-include(":kinta-cli", ":kinta-lib", ":workflows-builtin")
+include(":kinta-cli", ":kinta-lib", "kinta-workflows")
 
 pluginManagement {
     repositories {

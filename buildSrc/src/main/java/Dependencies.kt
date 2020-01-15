@@ -3,6 +3,7 @@ object Versions {
     const val kotlin = "1.3.61"
     const val apollo = "1.2.2"
     const val okhttp = "3.8.1"
+    const val dokka = "0.10.0"
 }
 
 object Libs {

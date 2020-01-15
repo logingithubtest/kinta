@@ -12,9 +12,9 @@ repositories {
 
 dependencies {
     api("com.dailymotion.kinta:kinta-lib:0.1.0")
-    // The builtin workflows are in [com.dailymotion.kinta.BuiltinWorkflow].
+    // The builtin workflows are in [com.dailymotion.kinta.BuiltinWorkflows].
     // Comment this line if you don't want the builtin kinta workflows
-    implementation("com.dailymotion.kinta:kinta-builtin-workflows:0.1.0")
+    implementation("com.dailymotion.kinta:kinta-workflows:0.1.0")
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
 }
 
