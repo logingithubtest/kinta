@@ -31,7 +31,7 @@ fun main(args: Array<String>) {
 
     // Update the project workflows if needed
     if (hasKintaDir) {
-        Gradle(File("kintaSrc")).executeTask("assemble")
+        Gradle(File("kintaSrc")).executeTask("shadowJar")
     }
     mainCommand.main(args)
 

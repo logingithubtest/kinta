@@ -8,14 +8,11 @@ import java.net.URLClassLoader
 import java.util.*
 
 fun loadCommands(): List<CliktCommand> {
-    val fileBuiltInWorflowsJar = File("workflows-builtin/build/libs/kinta-workflows-builtin.jar")
     val fileCustomWorkflowsJar = File("./kintaSrc/build/libs/kinta-workflows-custom.jar")
 
     val urlClassLoader = URLClassLoader(
             arrayOf(
-                    fileBuiltInWorflowsJar.toURI().toURL(),
-                    fileCustomWorkflowsJar.toURI().toURL()),
-            ClassLoader.getSystemClassLoader())
+                    fileCustomWorkflowsJar.toURI().toURL()))
     val loader = ServiceLoader.load(Workflows::class.java, urlClassLoader)
 
     val listCommand: MutableList<CliktCommand> = mutableListOf()

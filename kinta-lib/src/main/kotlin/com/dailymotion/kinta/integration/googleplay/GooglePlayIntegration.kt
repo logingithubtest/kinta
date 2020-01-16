@@ -1,4 +1,6 @@
-@file:Suppress("DEPRECATION") // for GoogleCredential
+@file:Suppress("DEPRECATION")
+
+// for GoogleCredential
 
 package com.dailymotion.kinta.integration.googleplay
 
@@ -20,6 +22,7 @@ import com.google.api.services.androidpublisher.model.LocalizedText
 import com.google.api.services.androidpublisher.model.Track
 import com.google.api.services.androidpublisher.model.TrackRelease
 import kotlinx.serialization.json.Json
+import org.gradle.internal.impldep.org.apache.commons.io.FilenameUtils
 import java.io.File
 import java.io.InputStream
 import java.io.StringReader
@@ -237,12 +240,18 @@ object GooglePlayIntegration {
         }
     }
 
-    data class Resource(val title: String?, val shortDescription: String?, val description: String?)
+    data class ListingResource(
+            val language: String,
+            val title: String?,
+            val shortDescription: String?,
+            val description: String?,
+            val video: String? = null
+    )
 
     fun uploadListing(
             googlePlayJson: String? = null,
             packageName: String? = null,
-            listingProvider: (lang: String) -> Resource?
+            listingProvider: (lang: String) -> ListingResource?
     ) {
         Log.d("uploading listing")
 
@@ -269,6 +278,7 @@ object GooglePlayIntegration {
                 resource.title?.let { listing.title = it }
                 resource.shortDescription?.let { listing.shortDescription = it }
                 resource.description?.let { listing.fullDescription = it }
+                resource.video?.let { listing.video = it }
 
                 edits.listings()
                         .update(packageName_, editId, listing.language, listing)
@@ -278,10 +288,70 @@ object GooglePlayIntegration {
         }
     }
 
-    enum class ImageType(val value: String) {
-        IMAGETYPE_PHONE("phoneScreenshots"),
-        IMAGETYPE_TENINCH("tenInchScreenshots")
+    fun getListings(
+            googlePlayJson: String? = null,
+            packageName: String? = null
+    ): List<ListingResource> {
+        Log.d("getting listing")
+
+        val packageName_ = packageName ?: KintaEnv.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
+        val publisher = publisher(googlePlayJson, packageName_)
+        val resources = mutableListOf<ListingResource>()
+
+        makeEdit(publisher, packageName_) { edits, editId ->
+            resources.addAll(edits.listings().list(packageName_, editId).execute().listings.map {
+                Log.d("Get listing for ${it.language}")
+                Log.d("   title: ${it.title}")
+                Log.d("   shortDescription: ${it.shortDescription}")
+                Log.d("   description: ${it.fullDescription}")
+                Log.d("   video: ${it.video}")
+                ListingResource(it.language, it.title, it.shortDescription, it.fullDescription, it.video)
+            })
+        }
+        return resources
     }
+
+    fun getImages(
+            googlePlayJson: String? = null,
+            packageName: String? = null
+    ): List<ImageData> {
+
+        val packageName_ = packageName ?: KintaEnv.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
+        val publisher = publisher(googlePlayJson, packageName_)
+        val resources = mutableListOf<ImageData>()
+
+        makeEdit(publisher, packageName_) { edits, editId ->
+            //Retrieve supported languages
+            edits.listings().list(packageName_, editId).execute().listings.map { it.language }.map { lang ->
+                //Cover any imageType
+                ImageType.values().map { imageType ->
+                    resources.addAll(edits.images()?.list(packageName_, editId, lang, imageType.value)?.execute()?.images?.map {
+                        ImageData(FilenameUtils.getName(it.url), it.url, lang, imageType)
+                    } ?: listOf())
+                }
+            }
+        }
+        return resources
+    }
+
+    enum class ImageType(val value: String) {
+        IMAGETYPE_FEATURE("featureGraphic"),
+        IMAGETYPE_ICON("icon"),
+        IMAGETYPE_PHONE("phoneScreenshots"),
+        IMAGETYPE_PROMO("promoGraphic"),
+        IMAGETYPE_SEVENINCH("sevenInchScreenshots"),
+        IMAGETYPE_TENINCH("tenInchScreenshots"),
+        IMAGETYPE_TVBANNER("tvBanner"),
+        IMAGETYPE_TV("tvScreenshots"),
+        IMAGETYPE_WEAR("wearScreenshots")
+    }
+
+    class ImageData(
+            val id: String,
+            val url: String,
+            val languageCode: String,
+            val imageType: ImageType
+    )
 
     class ImageUploadData(
             val file: File,
@@ -316,7 +386,7 @@ object GooglePlayIntegration {
 
                 entry.value.forEach { uploadData ->
 
-                    val mimetype = when(uploadData.file.extension.toLowerCase()) {
+                    val mimetype = when (uploadData.file.extension.toLowerCase()) {
                         "png" -> "image/png"
                         "jpg" -> "image/jpeg"
                         "jpeg" -> "image/jpeg"
@@ -330,19 +400,19 @@ object GooglePlayIntegration {
                             uploadData.languageCode,
                             uploadData.imageType.value,
                             object : AbstractInputStreamContent(mimetype) {
-                        override fun getLength(): Long {
-                            return uploadData.file.length()
-                        }
+                                override fun getLength(): Long {
+                                    return uploadData.file.length()
+                                }
 
-                        override fun retrySupported(): Boolean {
-                            return true
-                        }
+                                override fun retrySupported(): Boolean {
+                                    return true
+                                }
 
-                        override fun getInputStream(): InputStream {
-                            return uploadData.file.inputStream()
-                        }
+                                override fun getInputStream(): InputStream {
+                                    return uploadData.file.inputStream()
+                                }
 
-                    }).execute()
+                            }).execute()
                 }
             }
         }
