@@ -251,7 +251,7 @@ object GooglePlayIntegration {
     fun uploadListing(
             googlePlayJson: String? = null,
             packageName: String? = null,
-            listingProvider: (lang: String) -> ListingResource?
+            resources: List<ListingResource>
     ) {
         Log.d("uploading listing")
 
@@ -263,17 +263,12 @@ object GooglePlayIntegration {
             val existingListings = edits.listings().list(packageName_, editId).execute().listings
 
             for (listing in existingListings) {
-                val resource = listingProvider(listing.language)
-
-                if (resource == null) {
-                    continue
-                }
+                val resource = resources.find { it.language == listing.language } ?: continue
 
                 Log.d("Set listing for ${listing.language}")
                 Log.d("   title: ${resource.title}")
                 Log.d("   shortDescription: ${resource.shortDescription}")
                 Log.d("   description: ${resource.description}")
-
 
                 resource.title?.let { listing.title = it }
                 resource.shortDescription?.let { listing.shortDescription = it }
@@ -288,23 +283,45 @@ object GooglePlayIntegration {
         }
     }
 
+    fun removeListings(
+            googlePlayJson: String? = null,
+            packageName: String? = null,
+            languagesList: List<String>
+    ) {
+        Log.d("uploading listing")
+
+        val packageName_ = packageName ?: KintaEnv.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
+
+        val publisher = publisher(googlePlayJson, packageName_)
+
+        makeEdit(publisher, packageName_) { edits, editId ->
+            val existingListingsToRemove = edits.listings().list(packageName_, editId).execute().listings
+                    .filter {
+                        languagesList.contains(it.language)
+                    }
+
+            for (listing in existingListingsToRemove) {
+                Log.d("Removing language ${listing.language}")
+
+                edits.listings()
+                        .delete(packageName_, editId, listing.language)
+                        .execute()
+                Log.d("Play store listing updated")
+            }
+        }
+    }
+
     fun getListings(
             googlePlayJson: String? = null,
             packageName: String? = null
     ): List<ListingResource> {
-        Log.d("getting listing")
-
+        println("Getting listings from Google Play. Please wait.")
         val packageName_ = packageName ?: KintaEnv.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
         val publisher = publisher(googlePlayJson, packageName_)
         val resources = mutableListOf<ListingResource>()
 
         makeEdit(publisher, packageName_) { edits, editId ->
             resources.addAll(edits.listings().list(packageName_, editId).execute().listings.map {
-                Log.d("Get listing for ${it.language}")
-                Log.d("   title: ${it.title}")
-                Log.d("   shortDescription: ${it.shortDescription}")
-                Log.d("   description: ${it.fullDescription}")
-                Log.d("   video: ${it.video}")
                 ListingResource(it.language, it.title, it.shortDescription, it.fullDescription, it.video)
             })
         }

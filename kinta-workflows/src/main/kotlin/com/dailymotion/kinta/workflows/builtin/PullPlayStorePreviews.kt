@@ -9,9 +9,9 @@ import java.io.OutputStream
 import java.net.URL
 
 
-object RetrievePlayStorePreviews : CliktCommand(name = "retrievePlayStorePreviews", help = "Pull images previews from the Google Play") {
+object PullPlayStorePreviews : CliktCommand(name = "pullPlayStorePreviews", help = "Pull images previews from the Google Play") {
 
-    const val ANDROID_METADATA_FOLDER = "kintaSrc/playStorePreviews/"
+    const val PREVIEWS_FOLDER = "kintaSrc/playStorePreviews/"
 
     override fun run() {
 
@@ -22,7 +22,7 @@ object RetrievePlayStorePreviews : CliktCommand(name = "retrievePlayStorePreview
         //Create images tree
         images.groupBy { it.languageCode }.map {
             //Clean folder
-            val imageFolder = File(ANDROID_METADATA_FOLDER, it.key + "/images").apply {
+            val imageFolder = File(PREVIEWS_FOLDER, it.key + "/images").apply {
                 deleteRecursively()
                 mkdirs()
             }
