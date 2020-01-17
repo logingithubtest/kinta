@@ -1,4 +1,4 @@
-package com.dailymotion.kinta.workflows.builtin
+package com.dailymotion.kinta.workflows.builtin.playstore
 
 import com.dailymotion.kinta.integration.googleplay.GooglePlayIntegration
 import com.github.ajalt.clikt.core.CliktCommand
@@ -17,7 +17,7 @@ object PullPlayStorePreviews : CliktCommand(name = "pullPlayStorePreviews", help
 
         //Get Google Play images previews
         println("Getting images from Google Play. Please wait")
-        val images = GooglePlayIntegration.getImages()
+        val images = GooglePlayIntegration.getPreviews()
 
         //Create images tree
         images.groupBy { it.languageCode }.map {

@@ -1,4 +1,4 @@
-package com.dailymotion.kinta.workflows.builtin
+package com.dailymotion.kinta.workflows.builtin.playstore
 
 import com.dailymotion.kinta.integration.googleplay.GooglePlayIntegration
 import com.github.ajalt.clikt.core.CliktCommand

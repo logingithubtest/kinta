@@ -18,6 +18,7 @@ import com.google.api.client.util.PemReader
 import com.google.api.client.util.SecurityUtils
 import com.google.api.services.androidpublisher.AndroidPublisher
 import com.google.api.services.androidpublisher.AndroidPublisherScopes
+import com.google.api.services.androidpublisher.model.Listing
 import com.google.api.services.androidpublisher.model.LocalizedText
 import com.google.api.services.androidpublisher.model.Track
 import com.google.api.services.androidpublisher.model.TrackRelease
@@ -86,50 +87,70 @@ object GooglePlayIntegration {
     }
 
     /**
-     * Upload the bundle, set up a beta track release with version @versionCode based on current prod track release configuration @prodVersionCode
-     * @param aabFile the file to upload
-     * @param versionCode the version code to upload
-     * @param moduleProdVersionCode the current prod version for the module
-     * @param lastReleaseName the last release name published
+     * Upload the archive file to beta track.
+     * If you need multiple APKs support, please provide @lastReleaseName and @moduleProdVersionCode.
+     * Else the new release will only include the versionCode coming with the archive file
+     * @param archiveFile the file to upload
+     * @param lastReleaseName which identifies the release, the new configuration will based on.
+     * @param moduleProdVersionCode which identifies the version to replace creating the new configuration
      */
-    fun uploadBetaBundle(
+    fun uploadBeta(
             googlePlayJson: String? = null,
             packageName: String? = null,
-            aabFile: File,
-            versionCode: Long,
-            moduleProdVersionCode: Long,
-            lastReleaseName: String) {
+            archiveFile: File,
+            moduleProdVersionCode: Long? = null,
+            lastReleaseName: String? = null) {
 
-        val packageName_ = packageName ?: KintaEnv.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
+        val packageName_ = packageName ?: KintaConfig.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
 
         val publisher = publisher(googlePlayJson, packageName_)
         makeEdit(publisher, packageName_) { edits, editId ->
             // Upload new bundle to developer console
-            val file = FileContent("application/octet-stream", aabFile)
-            val uploadRequest = edits.bundles().upload(packageName_, editId, file)
+            val file = FileContent("application/octet-stream", archiveFile)
+            var versionCode: Int = -1
             try {
-                Log.d(String.format("Uploading bundle..."))
-                uploadRequest.execute()
+                versionCode = when (archiveFile.extension) {
+                    "aab" -> {
+                        val uploadRequest = edits.bundles().upload(packageName_, editId, file)
+                        Log.d(String.format("Uploading bundle..."))
+                        uploadRequest.execute().versionCode
+                    }
+                    "apk" -> {
+                        val uploadRequest = edits.bundles().upload(packageName_, editId, file)
+                        Log.d(String.format("Uploading APK..."))
+                        uploadRequest.execute().versionCode
+                    }
+                    else -> {
+                        throw IllegalArgumentException("The archive file provided is not supported (aab or apk authorized)")
+                    }
+                }
                 Log.d(String.format("Version code %d has been uploaded", versionCode))
             } catch (e: GoogleJsonResponseException) {
-                if (e.details.errors.get(0).reason == "apkUpgradeVersionConflict") {
-                    // bundle was already uploaded
+                if (e.details.errors[0].reason == "apkUpgradeVersionConflict") {
+                    Log.d("Warning: this version code has already been uploaded.")
+                    //TODO CAN WE GET THE VERSION AND CONTINUE THE PROCESS
                 } else {
                     throw e
                 }
             }
 
-            //Set MultiplesAPKs based on current prod conf
-            val getProdVersionsRequest = edits.tracks().get(packageName_, editId, TRACK_PRODUCTION)
-            Log.d(String.format("Getting prod conf..."))
-            val listVersionCodes = getProdVersionsRequest.execute().releases
-                    .find { it.name == lastReleaseName }
-                    ?.versionCodes
-                    ?: throw IllegalStateException("Can't find release named : $lastReleaseName on Play Console")
+            val listVersionCodes = if (moduleProdVersionCode != null && lastReleaseName != null) {
+                //Set MultiplesAPKs based on current prod conf
+                val getProdVersionsRequest = edits.tracks().get(packageName_, editId, TRACK_PRODUCTION)
+                Log.d(String.format("Getting prod conf..."))
+                val prodVersionsCode = getProdVersionsRequest.execute().releases
+                        .find { it.name == lastReleaseName }
+                        ?.versionCodes
+                        ?: throw IllegalStateException("Can't find release named : $lastReleaseName on Play Console")
 
-            Log.d(String.format("Current prod conf is : $listVersionCodes"))
-            listVersionCodes[listVersionCodes.indexOf(moduleProdVersionCode)] = versionCode
-            // Assign APK to beta track.
+                Log.d(String.format("Current prod conf is : $prodVersionsCode"))
+                prodVersionsCode.apply {
+                    set(indexOf(moduleProdVersionCode), versionCode.toLong())
+                }
+            } else {
+                listOf(versionCode.toLong())
+            }
+            // Assign release to beta track.
             val updateTrackRequest = edits.tracks().update(packageName_, editId, TRACK_BETA,
                     Track().setReleases(listOf(TrackRelease()
                             .setName(versionCode.toString())
@@ -142,6 +163,7 @@ object GooglePlayIntegration {
     }
 
     /**
+     * Deploy a version from a previous beta release (mandatory)
      * @param versionCode version code to deploy
      * @param ratio the user fraction
      * @return true if this is the first time we release this version (ie first rollout)
@@ -154,7 +176,7 @@ object GooglePlayIntegration {
             ratio: Int
     ): Boolean {
         var isFirstTimeInRollout = false
-        val packageName_ = packageName ?: KintaEnv.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
+        val packageName_ = packageName ?: KintaConfig.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
 
         val publisher = publisher(googlePlayJson, packageName_)
 
@@ -173,7 +195,7 @@ object GooglePlayIntegration {
             Log.d("First time in rollout = $isFirstTimeInRollout, versions = $versionCode")
 
             if (prodTrackRelease == null && betaTrackRelease == null) {
-                throw IllegalStateException("Version already in prod or version not in beta (call 'kinta beta ....' ? )")
+                throw IllegalStateException("Version $versionCode has not been found in $TRACK_BETA or $TRACK_PRODUCTION. Please upload a beta version first")
             }
 
             val status = if (ratio == 100) "completed" else "inProgress"
@@ -204,7 +226,7 @@ object GooglePlayIntegration {
             whatsNewProvider: (lang: String) -> String?) {
         Log.d("uploading changelog for version $versionCode")
 
-        val packageName_ = packageName ?: KintaEnv.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
+        val packageName_ = packageName ?: KintaConfig.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
 
         val publisher = publisher(googlePlayJson, packageName_)
 
@@ -255,25 +277,25 @@ object GooglePlayIntegration {
     ) {
         Log.d("uploading listing")
 
-        val packageName_ = packageName ?: KintaEnv.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
+        val packageName_ = packageName ?: KintaConfig.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
 
         val publisher = publisher(googlePlayJson, packageName_)
 
         makeEdit(publisher, packageName_) { edits, editId ->
-            val existingListings = edits.listings().list(packageName_, editId).execute().listings
-
-            for (listing in existingListings) {
-                val resource = resources.find { it.language == listing.language } ?: continue
-
-                Log.d("Set listing for ${listing.language}")
+            for (resource in resources) {
+                Log.d("Set listing for ${resource.language}")
                 Log.d("   title: ${resource.title}")
                 Log.d("   shortDescription: ${resource.shortDescription}")
                 Log.d("   description: ${resource.description}")
+                Log.d("   video: ${resource.video}")
 
-                resource.title?.let { listing.title = it }
-                resource.shortDescription?.let { listing.shortDescription = it }
-                resource.description?.let { listing.fullDescription = it }
-                resource.video?.let { listing.video = it }
+                val listing = Listing().apply {
+                    language = resource.language
+                    resource.title?.let { title = it }
+                    resource.shortDescription?.let { shortDescription = it }
+                    resource.description?.let { fullDescription = it }
+                    resource.video?.let { video = it }
+                }
 
                 edits.listings()
                         .update(packageName_, editId, listing.language, listing)
@@ -290,7 +312,7 @@ object GooglePlayIntegration {
     ) {
         Log.d("uploading listing")
 
-        val packageName_ = packageName ?: KintaEnv.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
+        val packageName_ = packageName ?: KintaConfig.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
 
         val publisher = publisher(googlePlayJson, packageName_)
 
@@ -316,7 +338,7 @@ object GooglePlayIntegration {
             packageName: String? = null
     ): List<ListingResource> {
         println("Getting listings from Google Play. Please wait.")
-        val packageName_ = packageName ?: KintaEnv.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
+        val packageName_ = packageName ?: KintaConfig.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
         val publisher = publisher(googlePlayJson, packageName_)
         val resources = mutableListOf<ListingResource>()
 
@@ -328,14 +350,14 @@ object GooglePlayIntegration {
         return resources
     }
 
-    fun getImages(
+    fun getPreviews(
             googlePlayJson: String? = null,
             packageName: String? = null
-    ): List<ImageData> {
+    ): List<PreviewImageData> {
 
-        val packageName_ = packageName ?: KintaEnv.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
+        val packageName_ = packageName ?: KintaConfig.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
         val publisher = publisher(googlePlayJson, packageName_)
-        val resources = mutableListOf<ImageData>()
+        val resources = mutableListOf<PreviewImageData>()
 
         makeEdit(publisher, packageName_) { edits, editId ->
             //Retrieve supported languages
@@ -343,7 +365,7 @@ object GooglePlayIntegration {
                 //Cover any imageType
                 ImageType.values().map { imageType ->
                     resources.addAll(edits.images()?.list(packageName_, editId, lang, imageType.value)?.execute()?.images?.map {
-                        ImageData(FilenameUtils.getName(it.url), it.url, lang, imageType)
+                        PreviewImageData(FilenameUtils.getName(it.url), it.url, lang, imageType)
                     } ?: listOf())
                 }
             }
@@ -363,7 +385,7 @@ object GooglePlayIntegration {
         IMAGETYPE_WEAR("wearScreenshots")
     }
 
-    class ImageData(
+    class PreviewImageData(
             val id: String,
             val url: String,
             val languageCode: String,
@@ -384,53 +406,55 @@ object GooglePlayIntegration {
     fun uploadImages(
             googlePlayJson: String? = null,
             packageName: String? = null,
-            images: List<ImageUploadData>,
+            languageCode: String,
+            imageType: ImageType,
+            images: List<File>,
             overwrite: Boolean = false
     ) {
         Log.d("uploading image")
 
-        val packageName_ = packageName ?: KintaEnv.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
+        val packageName_ = packageName ?: KintaConfig.getOrFail(KintaEnv.GOOGLE_PLAY_PACKAGE_NAME)
 
         val publisher = publisher(googlePlayJson, packageName_)
 
 
         makeEdit(publisher, packageName_) { edits, editId ->
 
-            images.groupBy { GroupingKey(it.imageType, it.languageCode) }.forEach { entry ->
-                if (overwrite) {
-                    edits.images().deleteall(packageName, editId, entry.key.languageCode, entry.key.imageType.value).execute()
-                }
+            if(overwrite) {
+                //Delete all images matching imageType and language
+                edits.images().deleteall(packageName, editId, languageCode, imageType.value).execute()
+            }
 
-                entry.value.forEach { uploadData ->
+            //Upload images
+            images.forEach { file ->
 
-                    val mimetype = when (uploadData.file.extension.toLowerCase()) {
-                        "png" -> "image/png"
-                        "jpg" -> "image/jpeg"
-                        "jpeg" -> "image/jpeg"
-                        else -> {
-                            throw IllegalArgumentException("Only jpg, jpeg and png extension are allowed (${uploadData.file.absolutePath}")
-                        }
+                val mimetype = when (file.extension.toLowerCase()) {
+                    "png" -> "image/png"
+                    "jpg" -> "image/jpeg"
+                    "jpeg" -> "image/jpeg"
+                    else -> {
+                        throw IllegalArgumentException("Only jpg, jpeg and png extension are allowed (${file.absolutePath}")
                     }
-                    edits.images().upload(
-                            packageName,
-                            editId,
-                            uploadData.languageCode,
-                            uploadData.imageType.value,
-                            object : AbstractInputStreamContent(mimetype) {
-                                override fun getLength(): Long {
-                                    return uploadData.file.length()
-                                }
-
-                                override fun retrySupported(): Boolean {
-                                    return true
-                                }
-
-                                override fun getInputStream(): InputStream {
-                                    return uploadData.file.inputStream()
-                                }
-
-                            }).execute()
                 }
+                edits.images().upload(
+                        packageName,
+                        editId,
+                        languageCode,
+                        imageType.value,
+                        object : AbstractInputStreamContent(mimetype) {
+                            override fun getLength(): Long {
+                                return file.length()
+                            }
+
+                            override fun retrySupported(): Boolean {
+                                return true
+                            }
+
+                            override fun getInputStream(): InputStream {
+                                return file.inputStream()
+                            }
+
+                        }).execute()
             }
         }
     }

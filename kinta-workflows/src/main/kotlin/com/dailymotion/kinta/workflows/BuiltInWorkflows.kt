@@ -1,7 +1,9 @@
 package com.dailymotion.kinta.workflows
 
 import com.dailymotion.kinta.Workflows
-import com.dailymotion.kinta.workflows.builtin.*
+import com.dailymotion.kinta.workflows.builtin.cleanGithubBranches
+import com.dailymotion.kinta.workflows.builtin.cleanLocal
+import com.dailymotion.kinta.workflows.builtin.playstore.*
 
 class BuiltInWorkflows : Workflows {
 
@@ -9,8 +11,11 @@ class BuiltInWorkflows : Workflows {
             cleanLocal,
             cleanGithubBranches,
             PullPlayStorePreviews,
+            PushPlayStoreImages,
             PullPlayStoreListings,
-            PushPlayStoreListings
+            PushPlayStoreListings,
+            BetaPlayStore,
+            ProdPlayStore
     )
 }
 
