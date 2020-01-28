@@ -1,4 +1,22 @@
-site_name: My Docs
+site_name: Kinta
+site_url: https://dailymotion.github.com/kinta
+repo_name: Kinta
+repo_url: https://github.com/dailymotion/kinta
+site_description: "Mobile Apps automation in Kotlin"
+site_author: Dailymotion
+remote_branch: gh-pages
+copyright: 'Copyright &copy; 2020 Dailymotion'
 
 theme:
   name: 'material'
+  logo:
+    icon: 'build'
+  palette:
+    primary: 'deep purple'
+
+nav:
+  - 'Overview': index.md
+  - 'Kdoc':
+      - 'kinta-cli': kdoc/kinta-cli/index.md
+      - 'kinta-lib': kdoc/kinta-lib/index.md
+      - 'kinta-workflows': kdoc/kinta-workflows/index.md

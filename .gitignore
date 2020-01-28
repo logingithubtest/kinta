@@ -7,3 +7,5 @@ kinta.credentials
 kinta.config
 local.properties
 /site
+/docs/kdoc
+/docs/index.md

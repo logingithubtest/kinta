@@ -1,4 +1,6 @@
-![kinta](docs/kinta.png)
+![kinta](docs/images/kinta.png)
+
+See the [project website](https://dailymotion.github.io/kinta) for documentation and APIs.
 
 Kinta is the swiss army knife for Mobile Apps automation. It helps you:
 
