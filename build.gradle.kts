@@ -36,7 +36,7 @@ subprojects {
             reportUndocumented = false
             outputFormat = "gfm"
 
-            outputDirectory = "$rootDir/docs/kdoc"
+            outputDirectory = "$rootDir/build/kdoc"
 
             perPackageOption {
                 // uncomment when/if https://github.com/Kotlin/dokka/pull/598 is merged
