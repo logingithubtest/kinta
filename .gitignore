@@ -6,3 +6,4 @@ kinta.credentials
 /*.iml
 kinta.config
 local.properties
+/site

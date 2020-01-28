@@ -9,6 +9,7 @@ plugins {
 
 subprojects {
     repositories {
+        // mavenLocal()
         jcenter()
         maven {
             url = uri("https://repo.gradle.org/gradle/libs-releases-local/")
@@ -29,6 +30,21 @@ subprojects {
 
     apply(plugin = "org.jetbrains.dokka")
     apply(plugin = "maven-publish")
+
+    tasks.withType<org.jetbrains.dokka.gradle.DokkaTask> {
+        configuration {
+            reportUndocumented = false
+            outputFormat = "gfm"
+
+            outputDirectory = "$rootDir/docs/kdoc"
+
+            perPackageOption {
+                // uncomment when/if https://github.com/Kotlin/dokka/pull/598 is merged
+                // matchingRegex = ".*\\.internal"
+                suppress = true
+            }
+        }
+    }
 
     afterEvaluate {
         configureMavenPublish()
