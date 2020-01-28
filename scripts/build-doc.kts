@@ -11,9 +11,6 @@ fun runCommand(command: String) {
 }
 
 fun usage() {
-    contract {
-        this.returns(Nothing)
-    }
     println("./scripts/build-doc.kts --version=x.y.z")
     System.exit(1)
 }
@@ -24,15 +21,16 @@ if (tag == null) {
     usage()
 }
 
-val tagName = tag.substringAfter("--version=")
+val tagName = tag!!.substringAfter("--version=")
 
 // generate doc, it will go in build/kdoc/
 runCommand("./gradlew dokka")
 
-// retrieve the old kdoc
-runCommand("git checkout kdoc")
+File("kdoc").mkdir()
+File("build/kdoc").copyRecursively(File("kdoc/$tagName"))
 
-File("build/kdoc")
+File("kdoc").copyRecursively(File("docs"))
+
 File("README.md").readLines()
         .filter { !it.contains("project website") } // Remove the link to the project website for users landing on github
         .map { it.replace("docs/", "") } // Fix links
