@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+     <loc>https://dailymotion.github.com/kinta/</loc>
+     <lastmod>2020-01-29</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+    <url>
+     <loc>https://dailymotion.github.com/kinta/kdoc/current/kinta-cli/</loc>
+     <lastmod>2020-01-29</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+    <url>
+     <loc>https://dailymotion.github.com/kinta/kdoc/current/kinta-lib/</loc>
+     <lastmod>2020-01-29</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+    <url>
+     <loc>https://dailymotion.github.com/kinta/kdoc/current/kinta-workflows/</loc>
+     <lastmod>2020-01-29</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+</urlset>
